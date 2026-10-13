@@ -1,6 +1,11 @@
 # Third-party notices
 
-FrameWarp uses the following third-party components.
+This file preserves upstream FrameWarp's notices. The native TRP subset contains
+none of the ReShade, ImGui or Vulkan headers below, links no NGX loader, and
+initializes no Latewarp runtime. It installs no Streamline/FSR hooks. These entries
+describe the original upstream project, not additional requirements of this helper.
+
+Upstream FrameWarp uses the following third-party components.
 
 * **ReShade add-on API headers.** Copyright 2014 Patrick Mours. BSD 3-Clause License; see
   `third_party/reshade/LICENSE.md` in the source repository. https://github.com/crosire/reshade

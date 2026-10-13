@@ -187,6 +187,27 @@ int main(int argc, char** argv) {
     EXPECT(sh->slots[0].camera.reset && sh->slots[0].camera.position_epoch>1,"resume invalidates temporal history");
     REQUIRE(submit()==0,"resumed copy submitted"); capture.Submitted(queue.Get());
     queue->Signal(done.Get(),++doneValue); done->SetEventOnCompletion(doneValue,event); REQUIRE(WaitForSingleObject(event,10000)==WAIT_OBJECT_0,"resume retired");
+    // Hold the GPU behind a fixture fence. A Ready slot whose copy is still
+    // queued must not be reused, even when no consumer has claimed it.
+    ComPtr<ID3D12Fence> gate; REQUIRE(SUCCEEDED(device->CreateFence(0,D3D12_FENCE_FLAG_NONE,IID_PPV_ARGS(&gate))),"stall gate");
+    REQUIRE(SUCCEEDED(queue->Wait(gate.Get(),1)),"fixture GPU stall");
+    REQUIRE(begin(),"stalled capture begin");
+    REQUIRE(capture.Record(device.Get(),list.Get(),window,inputs,cam,fw::qpc_now(),true),"stalled capture recorded");
+    REQUIRE(SUCCEEDED(list->Close()),"stalled list close"); ID3D12CommandList* stalledLists[]={list.Get()}; queue->ExecuteCommandLists(1,stalledLists);
+    capture.Submitted(queue.Get());
+    REQUIRE(sh->slots[0].state==fw::kReady,"stalled copy is signalled but not completed");
+    const auto stalledFrame=sh->slots[0].frame_id;
+    for (int i=1;i<fw::kSlots;++i) InterlockedExchange(&sh->slots[i].state,fw::kReading);
+    ComPtr<ID3D12CommandAllocator> probeAllocator; ComPtr<ID3D12GraphicsCommandList> probe;
+    REQUIRE(SUCCEEDED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,IID_PPV_ARGS(&probeAllocator))),"probe allocator");
+    REQUIRE(SUCCEEDED(device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE_DIRECT,probeAllocator.Get(),nullptr,IID_PPV_ARGS(&probe))),"probe list");
+    EXPECT(!capture.Record(device.Get(),probe.Get(),window,inputs,cam,fw::qpc_now(),true),"in-flight Ready slot cannot be reclaimed");
+    EXPECT(sh->slots[0].state==fw::kReady && sh->slots[0].frame_id==stalledFrame,"stalled slot metadata stays immutable");
+    EXPECT(!capture.Reset(),"GPU stall prevents destruction without host retirement");
+    REQUIRE(SUCCEEDED(gate->Signal(1)),"release fixture GPU stall");
+    REQUIRE(SUCCEEDED(queue->Signal(done.Get(),++doneValue)),"stall retirement signal"); done->SetEventOnCompletion(doneValue,event);
+    REQUIRE(WaitForSingleObject(event,10000)==WAIT_OBJECT_0,"stalled capture retires"); REQUIRE(SUCCEEDED(probe->Close()),"unused probe close");
+    for (int i=1;i<fw::kSlots;++i) InterlockedExchange(&sh->slots[i].state,fw::kFree);
     // A failed publication must retain the recorded textures, leave the slot
     // Writing, and never re-enable or advance the published frame.
     REQUIRE(begin(),"failed publication begin");
