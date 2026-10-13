@@ -4,6 +4,7 @@
 #include "presenter/frame_clock.hpp"
 #include "presenter/renderer.hpp"
 #include "shared/camera_check.hpp"
+#include "shared/native_visibility.hpp"
 #include <shellapi.h>
 #include <winternl.h>  // NTSTATUS for d3dkmthk.h
 #include <d3dkmthk.h>
@@ -1886,8 +1887,9 @@ void follow_game_window() {
     show = show && (fg == game || fg == g_app.overlay);
     const auto newest = InterlockedCompareExchange64(&g_app.shared->producer_heartbeat_qpc, 0, 0);
     const auto renderHeartbeat = InterlockedCompareExchange64(reinterpret_cast<volatile LONG64*>(&g_app.shared->presenter.heartbeat_qpc), 0, 0);
-    show = show && newest && seconds(qpc_now() - newest) < 0.5 && renderHeartbeat && seconds(qpc_now() - renderHeartbeat) < 1.0;
-    g_app.visible = show;
+    const auto visibility = native_visibility(show, g_app.has_frames, qpc_now(), newest, renderHeartbeat, g_qpc_frequency);
+    g_app.visible = visibility.render; // allow cold start while the overlay stays hidden
+    show = visibility.show;
     // Never cover the game until we actually have frames to show (avoids a black overlay).
     if (show && g_app.has_frames) {
         const int w = rc.right - rc.left, h = rc.bottom - rc.top;

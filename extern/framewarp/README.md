@@ -16,6 +16,8 @@ Local changes:
 - Use `Local\TRPFrameWarp_*` shared objects and native protocol version 55.
 - Add an atomic producer heartbeat; hide the window after 500 ms without a source
   or one second without the helper render thread's heartbeat.
+- Allow first-frame rendering while the window stays hidden until its image and
+  output heartbeat are ready; visibility and rendering eligibility are separate.
 - Keep logs/calibration/captures under `%LOCALAPPDATA%/TheosRenderPipeline/FrameWarp/<producer-pid>`.
 - Replace Latewarp initialization/evaluation with an own-engine-only adapter.
 - Request an unprivileged high-priority queue, falling back to normal.
