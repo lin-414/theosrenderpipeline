@@ -187,6 +187,12 @@ int main(int argc, char** argv) {
     EXPECT(sh->slots[0].camera.reset && sh->slots[0].camera.position_epoch>1,"resume invalidates temporal history");
     REQUIRE(submit()==0,"resumed copy submitted"); capture.Submitted(queue.Get());
     queue->Signal(done.Get(),++doneValue); done->SetEventOnCompletion(doneValue,event); REQUIRE(WaitForSingleObject(event,10000)==WAIT_OBJECT_0,"resume retired");
+    REQUIRE(begin(),"camera quality rejection begin");
+    InterlockedExchange(&sh->game_camera_check,1);
+    const auto beforeCameraRejection=capture.Snapshot().published;
+    EXPECT(!capture.Record(device.Get(),list.Get(),window,inputs,cam,fw::qpc_now(),true),"rejected native camera suspends capture");
+    EXPECT(!sh->settings.enabled && capture.Snapshot().published==beforeCameraRejection,"camera rejection leaves normal presentation visible");
+    REQUIRE(SUCCEEDED(list->Close()),"camera rejection list close"); InterlockedExchange(&sh->game_camera_check,0);
     // Hold the GPU behind a fixture fence. A Ready slot whose copy is still
     // queued must not be reused, even when no consumer has claimed it.
     ComPtr<ID3D12Fence> gate; REQUIRE(SUCCEEDED(device->CreateFence(0,D3D12_FENCE_FLAG_NONE,IID_PPV_ARGS(&gate))),"stall gate");

@@ -23,6 +23,8 @@ Local changes:
 - Request an unprivileged high-priority queue, falling back to normal.
 - Check helper GPU submissions/list operations and all retirement waits; exit on
   failure without returning GPU-owned Reading slots to the producer.
+- Report camera/motion disagreement as a native-bridge suspension, not an
+  estimated-camera fallback.
 - Keep the estimator's 1.5 ms CPU budget as an explicit `FW_CPU_BUDGET_TEST=1`
   benchmark; ordinary CPU tests assert numerical correctness. Native TRP camera
   inputs do not use the estimated-camera path.

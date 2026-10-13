@@ -36,6 +36,9 @@ The initial input contract requires:
 - Dedicated native UI and a fresh valid world camera.
 - Matching `R32_FLOAT` depth and `R16G16_FLOAT` motion guides at render resolution.
 
+If XPAR rejects the native camera/motion agreement, the bridge suspends until host
+retirement or restart. It does not enter the estimated-camera fallback.
+
 HDR, unsupported formats/devices, paused menus, loading transitions, and the TRP
 settings overlay suspend the helper. Native rendering continues. A producer
 fault stays latched until successful host retirement (such as resize) or restart.

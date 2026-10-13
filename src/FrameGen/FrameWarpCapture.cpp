@@ -156,6 +156,9 @@ bool Capture::Record(ID3D12Device* device, ID3D12GraphicsCommandList* list, HWND
         shared_->backbuffer_width != color.Width || shared_->backbuffer_height != color.Height) {
         Suspend("FrameWarp requires host retirement before resize/device replacement"); return false;
     }
+    if (InterlockedCompareExchange(&shared_->game_camera_check, 0, 0) == 1) {
+        Suspend("XPAR rejected native camera/motion agreement; host retirement or restart required"); return false;
+    }
     if (!Launch(helper)) return false;
     int index = -1;
     const auto completed = fence_->GetCompletedValue();

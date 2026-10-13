@@ -1680,7 +1680,7 @@ void render_thread() {
                     InterlockedExchange(&g_app.shared->game_camera_check, 1);
                     poor_estimate_windows = 0;
                     logf("the game's camera does not match its motion vectors (%d of %d frames with camera motion): "
-                         "estimating the camera from the motion vectors instead", camera_check.consistent, camera_check.frames);
+                         "native TRP reprojection will suspend (estimated-camera fallback is outside this experiment)", camera_check.consistent, camera_check.frames);
                 }
             }
             vram.poll(now, notes.empty() ? nullptr : "texture change");
