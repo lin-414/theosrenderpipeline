@@ -18,6 +18,7 @@ namespace TheosRenderPipeline::StartupHints
         CompatibilityRuntimeChanged, // another module changed patched code or imports
         CompatibilityRuntimeUnsupported, // NVIDIA runtime differs from the supported build
         CompatibilityAdapterUnidentified, // NVAPI could not match the rendering GPU
+        DriverTooOld, // RTX 20/30 frame generation needs a newer NVIDIA driver
     };
 
     // What the renderer actually observed when the failure happened.
@@ -42,6 +43,7 @@ namespace TheosRenderPipeline::StartupHints
         if (Contains(status, "swapchain ownership was not acquired")) { return Failure::SwapchainNotAcquired; }
         if (Contains(status, "configured DLSS-G module or required export missing") ||
             Contains(status, "prepared Ampere modules changed")) { return Failure::CompatibilityRuntimeMissing; }
+        if (Contains(status, "is too old for RTX 20/30 frame generation")) { return Failure::DriverTooOld; }
         if (Contains(status, "NVAPI")) { return Failure::CompatibilityAdapterUnidentified; }
         if (Contains(status, "publication changed") || Contains(status, "publication verification failed") ||
             Contains(status, "resolver changed") || Contains(status, "export changed identity") ||
@@ -108,6 +110,10 @@ namespace TheosRenderPipeline::StartupHints
         case Failure::CompatibilityAdapterUnidentified:
             line("NVIDIA's driver did not identify the GPU Skyrim renders on. Update the NVIDIA driver; on laptops, make "
                  "Skyrim use the NVIDIA GPU (Windows graphics settings: High performance).");
+            break;
+        case Failure::DriverTooOld:
+            line("Update the NVIDIA driver to 572.16 or newer (the latest is best) through NVIDIA App or nvidia.com, "
+                 "then start Skyrim again.");
             break;
         }
         return hint.empty() ? hint : "Likely causes and what to try:\n" + hint;

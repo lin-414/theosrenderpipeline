@@ -4,11 +4,14 @@
 #include "CommunityShaderIntegration.h"
 #include "../StartupHints.h"
 #include "DlssgOverride.h"
+#include "NvidiaDriverVersion.h"
 #include "../../extern/dlssg-turing/src/SourceDLSSGMFGPatch.h"
 #include "../../extern/dlssg-turing/extern/RTX40MFG/midpoint_fix.h"
 #include "../../extern/dlssg-turing/extern/RTX40MFG/dlssg_provider_policy.h"
 #include "../../extern/dlssg-turing/src/runtime.hpp"
 #include <d3d12.h>
+#include <dxgi1_4.h>
+#include <wrl/client.h>
 #include <cstring>
 #include <format>
 #include <spdlog/spdlog.h>
@@ -29,14 +32,17 @@ namespace TheosRenderPipeline::SourceDLSSG
 	}
 	[[noreturn]] void MFGUnlock::Fail(const char* reason)
 	{
-		state_.failed = true; state_.status = reason;
-		spdlog::error("[SourceDLSSG MFG] startup/verification failed: {}", reason);
-		const auto guidance = (state_.adapter == midpoint_fix::AdapterKind::Ampere || state_.adapter == midpoint_fix::AdapterKind::Turing) ?
+		Fail(reason, (state_.adapter == midpoint_fix::AdapterKind::Ampere || state_.adapter == midpoint_fix::AdapterKind::Turing) ?
 			std::string("RTX 20/30-series frame generation requires the Universal compatibility path.\n"
 				"Keep SourceDLSSGMFGUnlock=true and include TheosRenderPipeline.log when reporting this startup failure.\n") :
 			std::format("Temporal error: {}. Attempts: {}.\n\n"
 				"Set SourceDLSSGMFGUnlock=false under [Experimental] in SKSE/Plugins/TheosRenderPipeline.User.ini to use the unmodified NVIDIA runtime.\n",
-				state_.temporalFailure, state_.attempts);
+				state_.temporalFailure, state_.attempts));
+	}
+	[[noreturn]] void MFGUnlock::Fail(const char* reason, const std::string& guidance)
+	{
+		state_.failed = true; state_.status = reason;
+		spdlog::error("[SourceDLSSG MFG] startup/verification failed: {}", reason);
 		const auto hint = StartupHints::HintFor(reason, StartupHints::CurrentFacts(reason));
 		if (!hint.empty()) { spdlog::info("[SourceDLSSG MFG] {}", hint); }
 		util::report_and_fail(std::format(
@@ -53,6 +59,26 @@ namespace TheosRenderPipeline::SourceDLSSG
 				"Use the 3D application setting to restore MFG." : "");
 		state_.status = standDownStatus_.c_str();
 		spdlog::warn("[SourceDLSSG MFG] {}", standDownStatus_);
+	}
+	void MFGUnlock::CheckBackportDriver(ID3D12Device* device)
+	{
+		Microsoft::WRL::ComPtr<IDXGIFactory4> factory;
+		Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+		LARGE_INTEGER userMode{};
+		const bool read = device && SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) &&
+			SUCCEEDED(factory->EnumAdapterByLuid(device->GetAdapterLuid(), IID_PPV_ARGS(&adapter))) &&
+			SUCCEEDED(adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &userMode));
+		const auto version = read ? NvidiaDriverVersion(userMode.LowPart) : 0u;
+		if (!version) {
+			spdlog::warn("[SourceDLSSG MFG] NVIDIA driver version unavailable; RTX 20/30 frame generation needs {} or newer",
+				DriverVersionText(kBackportRecommendedDriver));
+			return;
+		}
+		spdlog::info("[SourceDLSSG MFG] NVIDIA driver {}; RTX 20/30 frame generation needs {} or newer",
+			DriverVersionText(version), DriverVersionText(kBackportMinimumDriver));
+		if (BackportDriverSupported(version)) { return; }
+		driverStatus_ = std::format("NVIDIA driver {} is too old for RTX 20/30 frame generation", DriverVersionText(version));
+		Fail(driverStatus_.c_str(), "TRP's RTX 20/30 frame generation uses NVIDIA kernels that this driver cannot compile.\n");
 	}
 	void MFGUnlock::EnterStartupScope() noexcept { trp::ampere::EnterStartupScope(); }
 	void MFGUnlock::LeaveStartupScope() noexcept { trp::ampere::LeaveStartupScope(); }
@@ -82,6 +108,7 @@ namespace TheosRenderPipeline::SourceDLSSG
 				"Set it to true in the winning MO2 INI (including Overwrite) and restart. "
 				"Turning frame generation off does not remove the required NVIDIA host.");
 		}
+		if (state_.UsesProviderBackport()) { CheckBackportDriver(device); }
 	}
 	void MFGUnlock::BeforeStreamline(ID3D12Device* device, const std::filesystem::path& directory)
 	{

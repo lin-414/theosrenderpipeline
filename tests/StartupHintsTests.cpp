@@ -1,4 +1,5 @@
 #include "StartupHints.h"
+#include "FrameGen/NvidiaDriverVersion.h"
 #include <cstdio>
 #include <cstdlib>
 
@@ -30,6 +31,21 @@ int main()
     Require(Classify("Ampere publication verification failed") == Failure::CompatibilityRuntimeChanged, "publication verification");
     Require(Classify("NVAPI does not match the physical compatibility adapter") == Failure::CompatibilityAdapterUnidentified, "NVAPI");
     Require(Classify("Ampere provider ABI is unsupported") == Failure::CompatibilityRuntimeUnsupported, "unsupported runtime");
+    Require(Classify("NVIDIA driver 566.36 is too old for RTX 20/30 frame generation") == Failure::DriverTooOld, "old driver");
+    Require(Has(Hint(Failure::DriverTooOld, {}), "572.16 or newer"), "old driver hint names the version to install");
+
+    // DXGI reports NVIDIA's 566.36 as 32.0.15.6636 and 610.88 as 32.0.16.1088.
+    {
+        using namespace TheosRenderPipeline::SourceDLSSG;
+        const auto low = [](unsigned third, unsigned fourth) { return static_cast<std::uint32_t>(third << 16 | fourth); };
+        Require(NvidiaDriverVersion(low(15, 6636)) == 56636 && NvidiaDriverVersion(low(16, 1088)) == 61088 &&
+            NvidiaDriverVersion(low(15, 7216)) == 57216, "NVIDIA driver numbers decode from the user-mode version");
+        Require(NvidiaDriverVersion(0) == 0 && NvidiaDriverVersion(low(16, 12000)) == 0, "malformed versions are unknown");
+        Require(DriverVersionText(56636) == "566.36" && DriverVersionText(57005) == "570.05", "versions print as NVIDIA writes them");
+        Require(!BackportDriverSupported(56636) && BackportDriverSupported(57000) && BackportDriverSupported(57216) &&
+            BackportDriverSupported(61088), "RTX 20/30 frame generation needs the R570 branch or newer");
+        Require(BackportDriverSupported(0), "an unknown version is not refused");
+    }
     Require(!Classify("Deferred source DLSS startup failed") && HintFor("Deferred source DLSS startup failed", {}).empty(),
         "unrecognised failures keep the original dialog");
 

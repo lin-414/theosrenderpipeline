@@ -63,6 +63,11 @@ namespace TheosRenderPipeline::SourceDLSSG
 		bool NvidiaOverride() const { return nvidiaOverride_; }
 	private:
 		[[noreturn]] void Fail(const char* reason);
+		// Fail with this guidance instead of the route's general advice.
+		[[noreturn]] void Fail(const char* reason, const std::string& guidance);
+		// RTX 20/30 only: refuses a driver too old to compile DLSS-G's kernels.
+		void CheckBackportDriver(ID3D12Device* device);
+		std::string driverStatus_;
 		// Ada only, while no patch is in an uncertain state: MFG stays off for the
 		// session and DLSS-G continues at x2. Anything else is fatal, as before.
 		void StandDown(const char* reason);

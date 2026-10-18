@@ -144,6 +144,7 @@ set(ARP_BASELINE_SOURCES
     src/FrameGen/SourceDLSSGDeviceLoss.cpp
     src/FrameGen/SourceDLSSGDeviceLoss.h
     src/FrameGen/SourceDLSSGInterop.h
+    src/FrameGen/NvidiaDriverVersion.h
     src/FrameGen/SourceDLSSGMFG.h
     src/FrameGen/SourceDLSSGNeuralRendering.h
     src/FrameGen/SourceDLSSGNeuralState.h
